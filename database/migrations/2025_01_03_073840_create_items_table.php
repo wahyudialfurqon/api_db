@@ -15,7 +15,10 @@ class CreateItemsTable extends Migration
     {
         Schema::create('items', function (Blueprint $table) {
             $table->id();
-            $table->string('image_path');
+            // Kolom untuk menyimpan URL gambar dari Cloudinary
+            $table->string('image_url');
+            // Kolom untuk menyimpan Public ID gambar di Cloudinary
+            $table->string('image_public_id');
             $table->string('item_name');
             $table->string('category');
             $table->text('item_description');
@@ -25,7 +28,6 @@ class CreateItemsTable extends Migration
             $table->timestamps();
         });
     }
-
     /**
      * Reverse the migrations.
      *

@@ -10,7 +10,8 @@ class Item extends Model
     use HasFactory;
 
     protected $fillable = [
-        'image_path',
+        'image_url',
+        'image_public_id',
         'item_name',
         'category',
         'item_description',
