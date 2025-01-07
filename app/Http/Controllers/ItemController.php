@@ -82,7 +82,7 @@ class ItemController extends Controller
     ], 500);
 }
 
-public function update(Request $request, $id)
+  public function update(Request $request, $id)
 {
     $item = Item::findOrFail($id);
 
