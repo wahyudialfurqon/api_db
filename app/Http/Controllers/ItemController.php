@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Item;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class ItemController extends Controller
@@ -39,103 +38,111 @@ class ItemController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $validatedData = $request->validate([
-            'image' => 'required|image|mimes:jpeg,jpg,png|max:5120', // Max 5MB
-            'item_name' => 'required|string|max:255',
-            'category' => 'required|in:otomotive,clothes,electronic,stationary,toys,sports,furniture',
-            'item_description' => 'required|string',
-            'uploaded_by' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
-            'phone_number' => 'required|string|max:15',
-        ]);
+{
+    // Validasi data
+    $validatedData = $request->validate([
+        'image' => 'required|image|mimes:jpeg,jpg,png|max:5120', // Max 5MB
+        'item_name' => 'required|string|max:255',
+        'category' => 'required|in:otomotive,clothes,electronic,stationary,toys,sports,furniture',
+        'item_description' => 'required|string',
+        'uploaded_by' => 'required|string|max:255',
+        'address' => 'required|string|max:255',
+        'phone_number' => 'required|string|max:15',
+    ]);
 
-        // Upload image to Cloudinary
-        $uploadedFile = Cloudinary::upload($request->file('image')->getRealPath(), [
-            'folder' => 'uploads/items',
-        ]);
+    // Upload gambar ke Cloudinary
+    $cloudinaryImage = $request->file('image')->storeOnCloudinary('items');
+    $url = $cloudinaryImage->getSecurePath(); // URL aman dari Cloudinary
+    $public_id = $cloudinaryImage->getPublicId(); // ID publik untuk penghapusan gambar
 
-        $imageUrl = $uploadedFile->getSecurePath(); // Get secure URL
+    // Simpan data ke database
+    $item = Item::create([
+        'image_url' => $url, // URL gambar dari Cloudinary
+        'image_public_id' => $public_id, // ID publik untuk referensi
+        'item_name' => $validatedData['item_name'],
+        'category' => $validatedData['category'],
+        'item_description' => $validatedData['item_description'],
+        'uploaded_by' => $validatedData['uploaded_by'],
+        'address' => $validatedData['address'],
+        'phone_number' => $validatedData['phone_number'],
+    ]);
 
-        $item = Item::create([
-            'image_path' => $imageUrl,
-            'item_name' => $validatedData['item_name'],
-            'category' => $validatedData['category'],
-            'item_description' => $validatedData['item_description'],
-            'uploaded_by' => $validatedData['uploaded_by'],
-            'address' => $validatedData['address'],
-            'phone_number' => $validatedData['phone_number'],
-        ]);
-
-        if ($item) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Item successfully uploaded',
-                'data' => $item
-            ], 201);
-        }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to upload item'
-        ], 500);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $item = Item::findOrFail($id);
-
-        $validatedData = $request->validate([
-            'image' => 'nullable|image|mimes:jpeg,jpg,png|max:5120', // Optional
-            'item_name' => 'required|string|max:255',
-            'category' => 'required|in:otomotive,clothes,electronic,stationary,toys,sports,furniture',
-            'item_description' => 'required|string',
-            'uploaded_by' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
-            'phone_number' => 'required|string|max:15',
-        ]);
-
-        if ($request->hasFile('image')) {
-            // Delete old image from Cloudinary if exists
-            if ($item->image_path) {
-                $fileUrl = $item->image_path;
-                $publicId = substr($fileUrl, strpos($fileUrl, 'uploads/items/'), strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/items/'));
-
-                Cloudinary::destroy($publicId);
-            }
-
-            // Upload new image to Cloudinary
-            $uploadedFile = Cloudinary::upload($request->file('image')->getRealPath(), [
-                'folder' => 'uploads/items',
-            ]);
-
-            $validatedData['image_path'] = $uploadedFile->getSecurePath();
-        } else {
-            $validatedData['image_path'] = $item->image_path;
-        }
-
-        $item->update($validatedData);
-
+    // Kirimkan respon berdasarkan hasil
+    if ($item) {
         return response()->json([
             'success' => true,
-            'message' => 'Item successfully updated',
+            'message' => 'Item successfully uploaded',
             'data' => $item
-        ], 200);
+        ], 201);
     }
+
+    return response()->json([
+        'success' => false,
+        'message' => 'Failed to upload item'
+    ], 500);
+}
+
+public function update(Request $request, $id)
+{
+    $item = Item::findOrFail($id);
+
+    // Validasi data
+    $validatedData = $request->validate([
+        'image' => 'nullable|image|mimes:jpeg,jpg,png|max:5120', // Optional
+        'item_name' => 'required|string|max:255',
+        'category' => 'required|in:otomotive,clothes,electronic,stationary,toys,sports,furniture',
+        'item_description' => 'required|string',
+        'uploaded_by' => 'required|string|max:255',
+        'address' => 'required|string|max:255',
+        'phone_number' => 'required|string|max:15',
+    ]);
+
+    // Cek apakah ada gambar baru yang diunggah
+    if ($request->hasFile('image')) {
+        // Hapus gambar lama dari Cloudinary jika ada
+        if ($item->image_public_id) {
+            Cloudinary::destroy($item->image_public_id);
+        }
+
+        // Upload gambar baru ke Cloudinary
+        $cloudinaryImage = $request->file('image')->storeOnCloudinary('items');
+        $url = $cloudinaryImage->getSecurePath(); // URL gambar aman dari Cloudinary
+        $public_id = $cloudinaryImage->getPublicId(); // ID publik gambar
+
+        // Update data gambar
+        $validatedData['image_url'] = $url;
+        $validatedData['image_public_id'] = $public_id;
+    } else {
+        // Jika tidak ada gambar baru, simpan gambar yang sudah ada
+        $validatedData['image_url'] = $item->image_url;
+        $validatedData['image_public_id'] = $item->image_public_id;
+    }
+
+    // Update data item lainnya
+    $item->update($validatedData);
+
+    // Kirimkan respon sukses
+    return response()->json([
+        'success' => true,
+        'message' => 'Item successfully updated',
+        'data' => $item
+    ], 200);
+}
+
 
     public function destroy($id)
     {
         $item = Item::findOrFail($id);
 
-        if ($item->image_path) {
-            $fileUrl = $item->image_path;
-            $publicId = substr($fileUrl, strpos($fileUrl, 'uploads/items/'), strrpos($fileUrl, '.') - strpos($fileUrl, 'uploads/items/'));
-
-            Cloudinary::destroy($publicId);
+        // Menghapus gambar menggunakan Cloudinary
+        if ($item->image_public_id) {
+            Cloudinary::destroy($item->image_public_id);
         }
 
+        // Menghapus item dari database
         $item->delete();
 
+        // Mengembalikan respon JSON
         return response()->json([
             'success' => true,
             'message' => 'Item successfully deleted'
